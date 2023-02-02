@@ -108,6 +108,11 @@ func Generate(fs afero.Afero, gitOpsFolder string, outputFolder string, componen
 		resources[otherFileName] = component.KubernetesResources.Others
 	}
 
+	// test and generate a namespace manifest
+	namespace := GetNamespace("dev"+"-"+component.Application, component.GitSource.URL)
+	resources["testNamespaceFile.yaml"] = namespace
+	k.AddResources("testNamespaceFile.yaml")
+
 	resources[kustomizeFileName] = k
 
 	_, err := yaml.WriteResources(fs, outputFolder, resources)
@@ -433,4 +438,31 @@ func getMatchLabel(options gitopsv1alpha1.GeneratorOptions) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/instance": options.Name,
 	}
+}
+
+// TypeMeta creates metav1.TypeMeta
+func TypeMeta(kind, apiVersion string) v1.TypeMeta {
+	return v1.TypeMeta{
+		Kind:       kind,
+		APIVersion: apiVersion,
+	}
+}
+
+// GetNamespace creates a Namespace value from a string.
+func GetNamespace(name, repoUrl string) *corev1.Namespace {
+	namespaceTypeMeta := TypeMeta("Namespace", "v1")
+
+	ns := corev1.Namespace{
+		TypeMeta: namespaceTypeMeta,
+		ObjectMeta: v1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				"app.openshift.io/vcs-uri": repoUrl + "?ref=HEAD",
+			},
+			Labels: map[string]string{
+				"argocd.argoproj.io/managed-by": "openshift-gitops",
+			},
+		},
+	}
+	return &ns
 }
